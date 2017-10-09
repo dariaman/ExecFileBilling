@@ -19,10 +19,24 @@ namespace ExecFileBilling
         static void Main(string[] args)
         {
             var Fileproses = genFile();
+            List<DataUploadModel> DataUpload;
             foreach (FileResultModel item in Fileproses)
             {
-                Console.WriteLine(item.FileName);
+                DataUpload = new List<DataUploadModel>();
 
+                Console.WriteLine(item.FileName);
+                switch (item.Id)
+                {
+                    case 1:
+                    case 2:
+                        DataUpload = BacaFileBCA(item);
+                        break;
+                    case 3:
+                    case 4:
+                    case 5:
+                    case 6:
+                        break;
+                }
                 removeFile(item);
             }
 
@@ -58,9 +72,9 @@ namespace ExecFileBilling
                     }
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                throw new Exception( ex.Message);
+                throw new Exception(ex.Message);
             }
             finally
             {
@@ -93,6 +107,47 @@ namespace ExecFileBilling
             {
                 con.CloseAsync();
             }
+
+        }
+
+        public static List<DataUploadModel> BacaFileBCA(FileResultModel Fileproses)
+        {
+            List<DataUploadModel> dataUpload = new List<DataUploadModel>();
+
+            //FileInfo Filex = new FileInfo(FileResult + Fileproses.FileName);
+            using (StreamReader reader = new StreamReader(File.OpenRead(FileResult + Fileproses.FileName)))
+            {
+                string line;
+                Decimal tmp1;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    var panjang = line.Length;
+                    if (panjang < 171) continue;
+
+                    if (!Decimal.TryParse(line.Substring(54, 9), out tmp1)) continue;
+                    dataUpload.Add(new DataUploadModel()
+                    {
+                        PolisNo = line.Substring(9, 25).Trim(),
+                        AccNo = line.Substring(34, 16).Trim(),
+                        AccName = line.Substring(65, 26).Trim(),
+                        Amount = tmp1,
+                        ApprovalCode= line.Substring(line.Length - 8).Substring(0, 6),
+                        Deskripsi = line.Substring(line.Length - 2)
+                    });
+                }
+            }
+            return dataUpload;
+        }
+        public static void BacaFileMandiri()
+        {
+
+        }
+        public static void BacaFileMega()
+        {
+
+        }
+        public static void BacaFileBNI()
+        {
 
         }
     }
