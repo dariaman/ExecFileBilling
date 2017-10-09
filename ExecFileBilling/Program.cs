@@ -15,6 +15,7 @@ namespace ExecFileBilling
         static string constring = ConfigurationManager.AppSettings["DefaultDB"];
         static string FileResult = ConfigurationManager.AppSettings["DirResult"];
         static string FileBackup = ConfigurationManager.AppSettings["BackupResult"];
+        static DateTime tglSekarang = DateTime.Now;
 
         static void Main(string[] args)
         {
@@ -37,7 +38,7 @@ namespace ExecFileBilling
                     case 6:
                         break;
                 }
-                removeFile(item);
+                //removeFile(item);
             }
 
             Console.ReadKey();
