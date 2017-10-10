@@ -31,6 +31,7 @@ namespace ExecFileBilling
                     case 1:
                     case 2:
                         DataUpload = BacaFileBCA(item);
+                        InsertTableStaging(DataUpload, "UploadBcaCC");
                         break;
                     case 3:
                     case 4:
@@ -41,6 +42,7 @@ namespace ExecFileBilling
                 //removeFile(item);
             }
 
+            Console.WriteLine((DateTime.Now- tglSekarang).Seconds.ToString());
             Console.ReadKey();
         }
 
@@ -99,6 +101,41 @@ namespace ExecFileBilling
                 cmd.ExecuteNonQuery();
                 FileInfo Filex = new FileInfo(FileResult + Fileproses.FileName);
                 if (Filex.Exists) Filex.MoveTo(FileBackup + Fileproses.FileName);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+            finally
+            {
+                con.CloseAsync();
+            }
+
+        }
+
+        public static void InsertTableStaging(List<DataUploadModel> DataUpload, string tableName)
+        {
+            String sqlStart = @"INSERT INTO " + tableName + " (`PolisNo`,`Amount`,`ApprovalCode`,`Deskripsi`,`AccNo`,`AccName`) values ";
+            string sql;
+            foreach (DataUploadModel item in DataUpload)
+            {
+                sql = string.Format(@"('{0}',{1},'{2}','{3}','{4}','{5}')",
+                    item.PolisNo,item.Amount,item.ApprovalCode,item.Deskripsi,item.AccNo,item.AccName);
+                ExecQueryAsync(sqlStart + sql);
+            }
+
+        }
+        public static void ExecQueryAsync(string query)
+        {
+            MySqlConnection con = new MySqlConnection(constring);
+            MySqlCommand cmd;
+            cmd = new MySqlCommand(query, con);
+            cmd.Parameters.Clear();
+            cmd.CommandType = CommandType.Text;
+            try
+            {
+                con.Open();
+                cmd.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
