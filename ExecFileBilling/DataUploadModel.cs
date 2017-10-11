@@ -10,12 +10,13 @@ namespace ExecFileBilling
     {
         public string PolisNo { get; set; }
 
-        public DateTime TglPaid { get; set; }
+        //public DateTime TglPaid { get; set; }
         public Decimal Amount { get; set; }
-
         public string ApprovalCode { get; set; }
         public string Deskripsi { get; set; }
         public string AccNo { get; set; }
         public string AccName { get; set; }
+
+        public Boolean IsSukses{ get; set; }
     }
 }
