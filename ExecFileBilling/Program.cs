@@ -182,36 +182,33 @@ namespace ExecFileBilling
                 // eksekusi per 100 data
                 if (i == 1000)
                 {
-                    ExecQueryAsync(sqlStart + sql.TrimEnd(','));
-                    //Task.Run(() => ExecQueryAsync(sqlStart + sql.TrimEnd(',')));
+                    //ExecQueryAsync(sqlStart + sql.TrimEnd(','));
+                    Task.Run(() => ExecQueryAsync(sqlStart + sql.TrimEnd(',')));
                     sql = "";
                     i = 0;
                 }
             }
             //eksekusi sisanya 
-            ExecQueryAsync(sqlStart + sql.TrimEnd(','));
-            //if (i > 0) Task.Run(() => ExecQueryAsync(sqlStart + sql.TrimEnd(',')));
+            //ExecQueryAsync(sqlStart + sql.TrimEnd(','));
+            if (i > 0) Task.Run(() => ExecQueryAsync(sqlStart + sql.TrimEnd(',')));
         }
 
-        public static void ExecQueryAsync(string query)
+        public static async Task ExecQueryAsync(string query)
         {
-            MySqlConnection con = new MySqlConnection(constring);
-            MySqlCommand cmd;
-            cmd = new MySqlCommand(query, con);
-            cmd.Parameters.Clear();
-            cmd.CommandType = CommandType.Text;
-            try
+            using (MySqlConnection con = new MySqlConnection(constring))
             {
-                con.Open();
-                cmd.ExecuteNonQuery();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-            finally
-            {
-                con.CloseAsync();
+                MySqlCommand cmd = new MySqlCommand(query, con);
+                cmd.Parameters.Clear();
+                cmd.CommandType = CommandType.Text;
+                try
+                {
+                    con.Open();
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception(ex.Message);
+                }
             }
         }
 
