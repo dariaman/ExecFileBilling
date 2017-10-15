@@ -16,7 +16,7 @@ namespace ExecFileBilling
         static string constring = ConfigurationManager.AppSettings["DefaultDB"];
         static string FileResult = ConfigurationManager.AppSettings["DirResult"];
         static string FileBackup = ConfigurationManager.AppSettings["BackupResult"];
-        static DateTime tglSekarang = DateTime.Now;
+        //static DateTime tglSekarang = DateTime.Now;
 
         static string BCA_TEMP_TABLE = "UploadBcaCC";
         static string MANDIRI_TEMP_TABLE = "UploadMandiriCC";
@@ -27,6 +27,9 @@ namespace ExecFileBilling
             List<DataUploadModel> DataUpload;
             List<DataSubmitModel> DataProses;
             KosongkanTabel();
+            DateTime tglSekarang = DateTime.Now;
+
+            FileAction fileUpload = new FileAction();
             foreach (FileResultModel item in Fileproses)
             {
                 DataUpload = new List<DataUploadModel>();
@@ -35,17 +38,20 @@ namespace ExecFileBilling
                 {
                     case 1: // BCA Approve
                     case 2: // BCA Reject
-                        DataUpload = BacaFileBCA(item);
-                        InsertTableStagingAsync(DataUpload, BCA_TEMP_TABLE);
-                        MapingDataApprove(BCA_TEMP_TABLE);
-                        DataProses = PoolDataProsesApprove(BCA_TEMP_TABLE);
+                        //DataUpload = BacaFileBCA(item);
+                        DataUpload = fileUpload.BacaFileBCA(item.FileName);
+                        //InsertTableStagingAsync(DataUpload, BCA_TEMP_TABLE);
+                        InsertTableStaging(DataUpload, BCA_TEMP_TABLE);
+
+                        //MapingDataApprove(BCA_TEMP_TABLE);
+                        //DataProses = PoolDataProsesApprove(BCA_TEMP_TABLE);
                         break;
                     case 3: // Mandiri
-                        DataUpload = BacaFileMandiri(item);
-                        InsertTableStagingAsync(DataUpload, MANDIRI_TEMP_TABLE);
-                        MapingDataApprove(MANDIRI_TEMP_TABLE);
-                        DataProses = PoolDataProsesApprove(MANDIRI_TEMP_TABLE);
-                        break;
+                        //DataUpload = BacaFileMandiri(item);
+                        //InsertTableStagingAsync(DataUpload, MANDIRI_TEMP_TABLE);
+                        //MapingDataApprove(MANDIRI_TEMP_TABLE);
+                        //DataProses = PoolDataProsesApprove(MANDIRI_TEMP_TABLE);
+                        //break;
                     case 4:
                     case 5:
                     case 6:
@@ -174,23 +180,53 @@ namespace ExecFileBilling
             String sqlStart = @"INSERT INTO " + tableName + "(PolisNo,Amount,ApprovalCode,Deskripsi,AccNo,AccName,IsSukses) values ";
             string sql = "";
             int i = 0;
+            List<Task> tasks = new List<Task>();
+
             foreach (DataUploadModel item in DataUpload)
             {
+                i++;
+                sql = sql + string.Format(@"('{0}',{1},'{2}','{3}','{4}','{5}',{6}),",
+                    item.PolisNo, item.Amount, item.ApprovalCode, item.Deskripsi, item.AccNo, item.AccName, item.IsSukses);
+
+                tasks.Add(Task.Factory.StartNew(() => {
+                    ExecQueryAsync(sqlStart + sql.TrimEnd(','));
+                }));
+                    // eksekusi per 100 data
+                    //if (i == 100)
+                    //{
+                    //    ExecQueryAsync(sqlStart + sql.TrimEnd(',')).Wait();
+
+                    //    //Task.Run(() => ExecQueryAsync(sqlStart + sql.TrimEnd(',')));
+                    //    sql = "";
+                    //    i = 0;
+                    //}
+                }
+            //eksekusi sisanya 
+            //ExecQueryAsync(sqlStart + sql.TrimEnd(','));
+            if (i > 0) Task.Run(() => ExecQueryAsync(sqlStart + sql.TrimEnd(',')));
+        }
+
+        public static void InsertTableStaging(List<DataUploadModel> DataUpload, string tableName)
+        {
+            String sqlStart = @"INSERT INTO " + tableName + "(PolisNo,Amount,ApprovalCode,Deskripsi,AccNo,AccName,IsSukses) values ";
+            string sql = "";
+            int i = 0;
+            foreach (DataUploadModel item in DataUpload)
+            {
+                if (item == null) continue;
                 i++;
                 sql = sql + string.Format(@"('{0}',{1},'{2}','{3}','{4}','{5}',{6}),",
                     item.PolisNo, item.Amount, item.ApprovalCode, item.Deskripsi, item.AccNo, item.AccName, item.IsSukses);
                 // eksekusi per 100 data
                 if (i == 1000)
                 {
-                    //ExecQueryAsync(sqlStart + sql.TrimEnd(','));
-                    Task.Run(() => ExecQueryAsync(sqlStart + sql.TrimEnd(',')));
+                    ExecQueryAsync(sqlStart + sql.TrimEnd(',')).Wait();
                     sql = "";
                     i = 0;
                 }
             }
             //eksekusi sisanya 
-            //ExecQueryAsync(sqlStart + sql.TrimEnd(','));
-            if (i > 0) Task.Run(() => ExecQueryAsync(sqlStart + sql.TrimEnd(',')));
+            if (i > 0) ExecQueryAsync(sqlStart + sql.TrimEnd(',')).Wait();
         }
 
         public static async Task ExecQueryAsync(string query)
@@ -203,7 +239,7 @@ namespace ExecFileBilling
                 try
                 {
                     con.Open();
-                    await cmd.ExecuteNonQueryAsync();
+                    await cmd.ExecuteNonQueryAsync().ContinueWith(_ => con.CloseAsync());
                 }
                 catch (Exception ex)
                 {
