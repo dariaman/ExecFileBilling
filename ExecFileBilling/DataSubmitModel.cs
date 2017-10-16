@@ -24,5 +24,11 @@ namespace ExecFileBilling
         public Decimal PremiAmount { get; set; }
         public Decimal CashlessFeeAmount { get; set; }
         public Decimal TotalAmount { get; set; }
+
+        // Data virtual
+        public string TransHistory { get; set; }
+        public string receiptID { get; set; }
+        public string receiptOtherID { get; set; }
+        //public string receiptID { get; set; }
     }
 }
