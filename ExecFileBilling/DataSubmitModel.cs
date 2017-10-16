@@ -8,6 +8,7 @@ namespace ExecFileBilling
 {
     class DataSubmitModel
     {
+        public int seqid { get; set; }
         public string PolisNo { get; set; }
         public Decimal Amount { get; set; }
         public string ApprovalCode { get; set; }
@@ -20,5 +21,8 @@ namespace ExecFileBilling
         public string BillCode { get; set; }
         public string BillStatus { get; set; }
         public string PolisStatus { get; set; }
+        public Decimal PremiAmount { get; set; }
+        public Decimal CashlessFeeAmount { get; set; }
+        public Decimal TotalAmount { get; set; }
     }
 }

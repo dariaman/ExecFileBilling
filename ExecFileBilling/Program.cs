@@ -29,21 +29,23 @@ namespace ExecFileBilling
             KosongkanTabel();
             DateTime tglSekarang = DateTime.Now;
 
-            FileAction fileUpload = new FileAction();
             foreach (FileResultModel item in Fileproses)
             {
+                item.FileSaveName = item.FileName + Guid.NewGuid().ToString().Substring(0, 8);
                 DataUpload = new List<DataUploadModel>();
                 Console.WriteLine(item.FileName);
                 switch (item.Id)
                 {
                     case 1: // BCA Approve
+                        DataUpload = BacaFileBCA(item);
+                        InsertTableStaging(DataUpload, BCA_TEMP_TABLE);
+                        MapingDataApprove(BCA_TEMP_TABLE);
+                        DataProses = PoolDataProsesApprove(BCA_TEMP_TABLE);
+                        break;
                     case 2: // BCA Reject
                         //DataUpload = BacaFileBCA(item);
-                        DataUpload = fileUpload.BacaFileBCA(item.FileName);
-                        //InsertTableStagingAsync(DataUpload, BCA_TEMP_TABLE);
-                        InsertTableStaging(DataUpload, BCA_TEMP_TABLE);
-
-                        //MapingDataApprove(BCA_TEMP_TABLE);
+                        //InsertTableStaging(DataUpload, BCA_TEMP_TABLE);
+                        //MapingDataReject(BCA_TEMP_TABLE);
                         //DataProses = PoolDataProsesApprove(BCA_TEMP_TABLE);
                         break;
                     case 3: // Mandiri
@@ -111,7 +113,7 @@ namespace ExecFileBilling
             List<DataSubmitModel> DataProses = new List<DataSubmitModel>();
             MySqlConnection con = new MySqlConnection(constring);
             MySqlCommand cmd;
-            cmd = new MySqlCommand(@"SELECT * FROM " + tableName + " u WHERE u.`IsSukses`=1;", con);
+            cmd = new MySqlCommand(@"SELECT * FROM " + tableName + " u WHERE u.`IsSukses`=1 AND u.BillCode='B';", con);
             cmd.CommandType = CommandType.Text;
             try
             {
@@ -122,6 +124,7 @@ namespace ExecFileBilling
                     {
                         DataProses.Add(new DataSubmitModel()
                         {
+                            seqid = Convert.ToInt32(rd["seqid"]),
                             PolisNo = rd["PolisNo"].ToString(),
                             Amount = Convert.ToDecimal(rd["Amount"]),
                             ApprovalCode = rd["ApprovalCode"].ToString(),
@@ -130,10 +133,13 @@ namespace ExecFileBilling
                             AccName = rd["AccName"].ToString(),
                             IsSukses = Convert.ToBoolean(rd["IsSukses"]),
                             PolisId = rd["PolisId"].ToString(),
-                            BillingID = rd["BillingID"].ToString(),
+                            BillingID = (rd["BillingID"] == DBNull.Value) ? null : rd["BillingID"].ToString(),
                             BillCode = rd["BillCode"].ToString(),
                             BillStatus = rd["BillStatus"].ToString(),
-                            PolisStatus = rd["PolisStatus"].ToString()
+                            PolisStatus = rd["PolisStatus"].ToString(),
+                            PremiAmount = Convert.ToDecimal(rd["PremiAmount"]),
+                            CashlessFeeAmount = Convert.ToDecimal(rd["CashlessFeeAmount"]),
+                            TotalAmount =  Convert.ToDecimal(rd["TotalAmount"])
                         });
                     }
                 }
@@ -151,7 +157,6 @@ namespace ExecFileBilling
 
         public static void removeFile(FileResultModel Fileproses)
         {
-            var idFile = Guid.NewGuid().ToString().Substring(0, 8);
             MySqlConnection con = new MySqlConnection(constring);
             MySqlCommand cmd;
             cmd = new MySqlCommand(@"UPDATE `FileNextProcess` SET `FileName`=NULL,`tglProses`=NULL WHERE `id`=@id;", con);
@@ -162,7 +167,7 @@ namespace ExecFileBilling
                 con.Open();
                 cmd.ExecuteNonQuery();
                 FileInfo Filex = new FileInfo(FileResult + Fileproses.FileName);
-                if (Filex.Exists) Filex.MoveTo(FileBackup + Fileproses.FileName + idFile);
+                if (Filex.Exists) Filex.MoveTo(FileBackup + Fileproses.FileSaveName);
             }
             catch (Exception ex)
             {
@@ -215,10 +220,10 @@ namespace ExecFileBilling
             {
                 if (item == null) continue;
                 i++;
-                sql = sql + string.Format(@"('{0}',{1},'{2}','{3}','{4}','{5}',{6}),",
+                sql = sql + string.Format(@"('{0}',{1},'{2}',NULLIF('{3}',''),'{4}','{5}',{6}),",
                     item.PolisNo, item.Amount, item.ApprovalCode, item.Deskripsi, item.AccNo, item.AccName, item.IsSukses);
                 // eksekusi per 100 data
-                if (i == 1000)
+                if (i == 500)
                 {
                     ExecQueryAsync(sqlStart + sql.TrimEnd(',')).Wait();
                     sql = "";
@@ -387,8 +392,10 @@ END AS seqno,
 	b.BillingID
 FROM `billing` b
 INNER JOIN `policy_billing` pb ON pb.policy_Id=b.policy_id
-INNER JOIN " + tableName + @" su ON su.`PolisNo`=pb.`policy_no`
-WHERE b.status_billing IN ('A','C') and su.`IsSukses`=1
+INNER JOIN (
+	SELECT DISTINCT s.`PolisNo` FROM UploadBcaCC s WHERE s.`IsSukses`=1
+) su ON su.`PolisNo`=pb.`policy_no`
+WHERE b.status_billing IN ('A','C') 
 ORDER BY b.policy_id,b.recurring_seq;
 		
 UPDATE " + tableName + @" up
@@ -399,6 +406,7 @@ SET up.`seqid`=CASE
 WHERE up.`IsSukses`=1 AND LEFT(up.`PolisNo`,1) NOT IN ('A','X')
 ORDER BY up.`PolisNo`,up.`Amount`;
 
+## Maping data upload yang ada billingnya
 update " + tableName + @" up
 inner join billx bx on up.`PolisNo`=bx.`policy_no` and up.`seqid`=bx.seqno
 inner join `policy_billing` pb on pb.`policy_Id`=bx.policy_id
@@ -410,8 +418,10 @@ SET up.`PolisId`=pb.`policy_Id`,
 	up.`BillCode`='B',
 	up.`PremiAmount`=b.`policy_regular_premium`,
 	up.`CashlessFeeAmount`=b.`cashless_fee_amount`,
-	up.`TotalAmount`=b.`TotalAmount`;
+	up.`TotalAmount`=b.`TotalAmount`
+WHERE up.`IsSukses`=1;
 
+## isi data yang gak ada billing (karena akan create billing)
 UPDATE " + tableName + @" up
 INNER JOIN `policy_billing` pb ON pb.`policy_no`=up.`PolisNo`
 	SET up.`PolisId`=pb.`policy_Id`,
@@ -419,7 +429,7 @@ INNER JOIN `policy_billing` pb ON pb.`policy_no`=up.`PolisNo`
 	up.`PremiAmount`=pb.`regular_premium`,
 	up.`CashlessFeeAmount`=pb.`cashless_fee_amount`,
 	up.`TotalAmount`=pb.`regular_premium`+pb.`cashless_fee_amount`
-WHERE up.`PolisId` IS NULL
+WHERE up.`PolisId` IS NULL AND up.`IsSukses`=1
 AND up.`IsSukses`=1
 AND LEFT(up.`PolisNo`,1) NOT IN ('A','X');
 
@@ -430,7 +440,7 @@ WHERE up.`IsSukses`=1 AND LEFT(up.`PolisNo`,1)='A';
 
 UPDATE " + tableName + @" up
 	set up.`BillingID`=TRIM(LEADING 'X' FROM up.`PolisNo`),
-	up.`BillCode`='X'
+	up.`BillCode`='Q'
 WHERE up.`IsSukses`=1 AND LEFT(up.`PolisNo`,1)='X';", con);
             cmd.Parameters.Clear();
             cmd.CommandType = CommandType.Text;
@@ -449,13 +459,90 @@ WHERE up.`IsSukses`=1 AND LEFT(up.`PolisNo`,1)='X';", con);
             }
         }
 
-        public static void SubmitTransaction(List<DataSubmitModel> DataProses)
+        public static void MapingDataReject(string tableName)
+        {
+            MySqlConnection con = new MySqlConnection(constring);
+            MySqlCommand cmd;
+            cmd = new MySqlCommand(@"
+SET @prev_value := 0;
+SET @rank_count := 0;
+DROP TEMPORARY TABLE IF EXISTS billx;
+CREATE TEMPORARY TABLE billx AS	
+SELECT 
+CASE
+    WHEN @prev_value = b.policy_id THEN @rank_count := @rank_count + 1
+    WHEN @prev_value := b.policy_id THEN @rank_count:=1
+END AS seqno,
+	b.policy_id,
+	policy_no,
+	b.BillingID
+FROM `billing` b
+INNER JOIN `policy_billing` pb ON pb.policy_Id=b.policy_id
+INNER JOIN (
+	SELECT DISTINCT s.`PolisNo` FROM UploadBcaCC s WHERE s.`IsSukses`=0
+) su ON su.`PolisNo`=pb.`policy_no`
+WHERE b.status_billing IN ('A','C') 
+ORDER BY b.policy_id,b.recurring_seq;
+		
+UPDATE " + tableName + @" up
+SET up.`seqid`=CASE
+	    WHEN @prev_value = up.`PolisNo` THEN @rank_count := @rank_count + 1
+	    WHEN @prev_value := up.`PolisNo` THEN @rank_count:=1
+	END
+WHERE up.`IsSukses`=0 AND LEFT(up.`PolisNo`,1) NOT IN ('A','X')
+ORDER BY up.`PolisNo`,up.`Amount`;
+
+## Maping data upload yang ada billingnya
+UPDATE " + tableName + @" up
+INNER JOIN billx bx ON up.`PolisNo`=bx.`policy_no` AND up.`seqid`=bx.seqno
+INNER JOIN `policy_billing` pb ON pb.`policy_Id`=bx.policy_id
+INNER JOIN `billing` b ON b.`BillingID`=bx.BillingID
+LEFT JOIN `reject_reason_map` rm ON rm.`reject_code`=up.`ApprovalCode` AND rm.`bank_id`=1
+SET up.`PolisId`=pb.`policy_Id`,	
+	up.`BillingID`=b.`BillingID`,	
+	up.`BillCode`='B',
+	up.`Deskripsi`=COALESCE(CONCAT(rm.`reject_reason_bank`,' - ',rm.`reject_reason_caf`),NULLIF(up.`Deskripsi`,''))
+WHERE up.`IsSukses`=0;
+
+UPDATE " + tableName + @" up
+LEFT JOIN `reject_reason_map` rm ON rm.`reject_code`=up.`ApprovalCode` AND rm.`bank_id`=1
+	SET up.`BillingID`=up.`PolisNo`,
+	up.`BillCode`='A',
+	up.`Deskripsi`=COALESCE(CONCAT(rm.`reject_reason_bank`,' - ',rm.`reject_reason_caf`),up.`Deskripsi`)
+WHERE up.`IsSukses`=0 AND LEFT(up.`PolisNo`,1)='A';
+
+UPDATE " + tableName + @" up
+LEFT JOIN `reject_reason_map` rm ON rm.`reject_code`=up.`ApprovalCode` AND rm.`bank_id`=1
+	SET up.`BillingID`=TRIM(LEADING 'X' FROM up.`PolisNo`),
+	up.`BillCode`='Q',
+	up.`Deskripsi`=COALESCE(CONCAT(rm.`reject_reason_bank`,' - ',rm.`reject_reason_caf`),up.`Deskripsi`)
+WHERE up.`IsSukses`=0 AND LEFT(up.`PolisNo`,1)='X';
+
+", con);
+            cmd.Parameters.Clear();
+            cmd.CommandType = CommandType.Text;
+            try
+            {
+                con.Open();
+                cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+            finally
+            {
+                con.CloseAsync();
+            }
+        }
+
+        public static void SubmitTransaction(List<DataSubmitModel> DataProses, FileResultModel DataHeader )
         {
             try
             {
                 foreach (DataSubmitModel item in DataProses)
                 {
-                    if (item.BillCode == "R") Task.Run(() => RecurringApprove(item));
+                    if (item.BillCode == "B") Task.Run(() => RecurringApprove(item));
                     //if (item.BillCode == "A") Task.Run(() => RecurringApprove());
                     //if (item.BillCode == "Q") Task.Run(() => RecurringApprove());
                 }
@@ -478,7 +565,6 @@ WHERE up.`IsSukses`=1 AND LEFT(up.`PolisNo`,1)='X';", con);
                 cmd.Connection = con;
                 cmd.Transaction = tr;
 
-                var billID = (DataProses.BillingID == "") ? DataProses.BillingID : CreateNewBilling(ref cmd, DataProses.PolisId);
                 tr.Rollback();
             }
             catch (MySqlException ex)
@@ -491,32 +577,5 @@ WHERE up.`IsSukses`=1 AND LEFT(up.`PolisNo`,1)='X';", con);
             }
         }
 
-        public static string CreateNewBilling(ref MySqlCommand cmd, string polisID)
-        {
-            string hasil = "";
-            //MySqlConnection con = new MySqlConnection(constring);
-            //MySqlCommand cmd;
-            //cmd = new MySqlCommand(@"CreateNewBillingRecurring", con);
-            //cmd.Transaction = tr;
-
-            cmd.CommandType = CommandType.StoredProcedure;
-            cmd.CommandText= "CreateNewBillingRecurring";
-            cmd.Parameters.Clear();
-            cmd.Parameters.Add(new MySqlParameter("@polisId", MySqlDbType.Int32) { Value = polisID });
-            try
-            {
-                //con.Open();
-                hasil = cmd.ExecuteScalar().ToString();
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-            //finally
-            //{
-            //    con.CloseAsync();
-            //}
-            return hasil;
-        }
     }
 }

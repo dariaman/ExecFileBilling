@@ -11,6 +11,7 @@ namespace ExecFileBilling
         public int Id { get; set; }
         public string trancode { get; set; }
         public string FileName { get; set; }
+        public string FileSaveName { get; set; }
         public DateTime tglProses { get; set; }
         public int bankid_receipt { get; set; }
         public string deskripsi { get; set; }
