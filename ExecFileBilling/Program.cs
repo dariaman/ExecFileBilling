@@ -672,6 +672,33 @@ SELECT LAST_INSERT_ID();";
                 }
 
 
+                // Insert CC Transaction
+                cmd.CommandType = CommandType.Text;
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"INSERT INTO `prod_life21`.`policy_cc_transaction`(`policy_id`,`transaction_dt`,`transaction_type`,
+`recurring_seq`,`count_times`,`currency`,`total_amount`,`due_date_pre`,`due_date_pre_period`,
+`cycle_date`,`acquirer_bank_id`,`status_id`,`remark`,`receipt_id`,`receipt_other_id`,`created_dt`,
+`cc_no`,`cc_name`,`cc_expiry`,`update_dt`)
+SELECT @PolisID,@Transdate,@billType,@Seq,1,'IDR',@Amount,@DueDatePre,@Period,@CycleDate,@BankID,2,'APPROVED',@receiptID,NULLIF(@receiptOtherID,0),@Transdate,
+@CCno, @CCName, @CCExpiry,@Transdate;
+SELECT LAST_INSERT_ID();";
+                cmd.Parameters.Add(new MySqlParameter("@PolisID", MySqlDbType.Int32) { Value = DataProses.PolisId });
+                cmd.Parameters.Add(new MySqlParameter("@Transdate", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                cmd.Parameters.Add(new MySqlParameter("@billType", MySqlDbType.VarChar) { Value = "R" });
+                cmd.Parameters.Add(new MySqlParameter("@Seq", MySqlDbType.Int32) { Value = DataProses.seqid });
+                cmd.Parameters.Add(new MySqlParameter("@Amount", MySqlDbType.Decimal) { Value = DataProses.Amount });
+                cmd.Parameters.Add(new MySqlParameter("@DueDatePre", MySqlDbType.Date) { Value = pt.Due_Date_Pre });
+                cmd.Parameters.Add(new MySqlParameter("@Period", MySqlDbType.VarChar) { Value = String.Format("{0:MMMdd}", pt.Due_Date_Pre) });
+                cmd.Parameters.Add(new MySqlParameter("@CycleDate", MySqlDbType.Int32) { Value = String.Format("{0:dd}", pt.Due_Date_Pre) });
+                cmd.Parameters.Add(new MySqlParameter("@BankID", MySqlDbType.Int32) { Value = pt.BankID });
+                cmd.Parameters.Add(new MySqlParameter("@receiptID", MySqlDbType.Int32) { Value = pt.receipt_id });
+                cmd.Parameters.Add(new MySqlParameter("@receiptOtherID", MySqlDbType.Int32) { Value = pt.receipt_other_id });
+
+                cmd.Parameters.Add(new MySqlParameter("@CCno", MySqlDbType.VarChar) { Value = pt.ACC_No });
+                cmd.Parameters.Add(new MySqlParameter("@CCName", MySqlDbType.VarChar) { Value = pt.ACC_Name });
+                cmd.Parameters.Add(new MySqlParameter("@CCExpiry", MySqlDbType.VarChar) { Value = pt.CC_expiry });
+                Console.Write(String.Format("receiptID={0} ... ", DataProses.receiptID));
+
                 tr.Rollback();
             }
             catch (MySqlException ex)
