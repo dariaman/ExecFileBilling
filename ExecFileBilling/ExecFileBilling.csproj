@@ -52,8 +52,10 @@
     <Compile Include="DataRejectModel.cs" />
     <Compile Include="DataSubmitModel.cs" />
     <Compile Include="DataUploadModel.cs" />
+    <Compile Include="EmailThanksEndorsemen.cs" />
     <Compile Include="EmailThanksQuote.cs" />
     <Compile Include="EmailThanksRecuring.cs" />
+    <Compile Include="ErrorLog.cs" />
     <Compile Include="FileResultModel.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

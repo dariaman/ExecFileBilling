@@ -74,7 +74,7 @@ WHERE qb.`quote_id`=@billID;", con);
     <tr><td>Metode Pembayaran</td>      <td>: {14}</td></tr>
     <tr><td>Jumlah Pembayaran</td>      <td>: IDR {15}</td></tr>
     <tr><td>Status</td>                 <td>: TERDAFTAR</td></tr>
-<table>
+</table>
 <br><br>Sukses selalu,
 <br>JAGADIRI ",
 (Convert.ToBoolean(rd["IsLaki"]) ? "Bapak" : "Ibu"),

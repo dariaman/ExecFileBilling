@@ -60,18 +60,19 @@ namespace ExecFileBilling
                         //SubmitRejectTransaction(BCA_TEMP_TABLE, DataReject, item);
                         break;
                     case 3: // Mandiri
-                        //KosongkanTabel();
-                        //DataUpload = BacaFileMandiri(item);
-                        //InsertTableStaging(DataUpload, MANDIRI_TEMP_TABLE);
+                        KosongkanTabel();
+                        DataUpload = BacaFileMandiri(item);
+                        InsertTableStaging(DataUpload, MANDIRI_TEMP_TABLE);
                         //MapingDataApprove(MANDIRI_TEMP_TABLE);
                         //DataProses = PoolDataProsesApprove(MANDIRI_TEMP_TABLE);
                         //SubmitApproveTransaction(MANDIRI_TEMP_TABLE, DataProses, item);
 
-                        // Proses yang reject
-                        //DataReject = PoolDataProsesReject(MANDIRI_TEMP_TABLE);
-                        //SubmitRejectTransaction(MANDIRI_TEMP_TABLE, DataProses, item);
+                        ////Proses yang reject
+                        MapingDataReject(MANDIRI_TEMP_TABLE);
+                        DataReject = PoolDataProsesReject(MANDIRI_TEMP_TABLE);
+                        SubmitRejectTransaction(MANDIRI_TEMP_TABLE, DataReject, item);
                         break;
-                    case 4:
+                    case 4: // Mega On US
                         //KosongkanTabel();
                         //DataUpload = BacaFileMega(item);
                         //InsertTableStaging(DataUpload, MEGAOnUs_TEMP_TABLE);
@@ -79,7 +80,7 @@ namespace ExecFileBilling
                         //DataProses = PoolDataProses(MEGAOnUs_TEMP_TABLE, 1);
                         //SubmitApproveTransaction(MEGAOnUs_TEMP_TABLE, DataProses, item);
                         break;
-                    case 5:
+                    case 5: // Mega Off Us
                         //KosongkanTabel();
                         //DataUpload = BacaFileMega(item);
                         //InsertTableStaging(DataUpload, MEGAOffUs_TEMP_TABLE);
@@ -88,12 +89,12 @@ namespace ExecFileBilling
                         //SubmitApproveTransaction(MEGAOffUs_TEMP_TABLE, DataProses, item);
                         break;
                     case 6: // BNI
-                        KosongkanTabel();
-                        DataUpload = BacaFileBNI(item);
-                        InsertTableStaging(DataUpload, BNI_TEMP_TABLE);
-                        MapingDataApprove(BNI_TEMP_TABLE);
-                        DataProses = PoolDataProsesApprove(BNI_TEMP_TABLE);
-                        SubmitApproveTransaction(BNI_TEMP_TABLE, DataProses, item);
+                        //KosongkanTabel();
+                        //DataUpload = BacaFileBNI(item);
+                        //InsertTableStaging(DataUpload, BNI_TEMP_TABLE);
+                        //MapingDataApprove(BNI_TEMP_TABLE);
+                        //DataProses = PoolDataProsesApprove(BNI_TEMP_TABLE);
+                        //SubmitApproveTransaction(BNI_TEMP_TABLE, DataProses, item);
 
                         //// Proses yang reject
                         //DataReject = PoolDataProsesReject(BNI_TEMP_TABLE);
@@ -269,6 +270,7 @@ namespace ExecFileBilling
                             AccName = rd["AccName"].ToString(),
                             IsSukses = Convert.ToBoolean(rd["IsSukses"]),
                             BillCode = rd["BillCode"].ToString(),
+                            BillingID = rd["BillingID"].ToString(),
                         });
                     }
                 }
@@ -772,7 +774,7 @@ WHERE up.`IsSukses`=0 AND LEFT(up.`PolisNo`,1)='X';
             }
             finally
             {
-                con.CloseAsync();
+                con.Close();
             }
             Console.WriteLine("Finish ...");
         }
@@ -787,11 +789,10 @@ WHERE up.`IsSukses`=0 AND LEFT(up.`PolisNo`,1)='X';
                 try
                 {
                     Console.Write(String.Format("{0} ", i));
-                    //if (item.BillCode == "B") Task.Run(async() =>await RecurringApprove(tableName,item, DataHeader));
-                    //if (item.BillCode == "B") RecurringApprove(tableName, item, DataHeader);
-                    //else if (item.BillCode == "A") Task.Run(() => RecurringApprove());
-                    //else 
-                    if (item.BillCode == "Q") QuoteApprove(item, DataHeader).Wait();
+                    //if (item.BillCode == "B") Task.Run(async () => await RecurringApprove(tableName, item, DataHeader));
+                    if (item.BillCode == "B") RecurringApprove(tableName, item, DataHeader);
+                    else if (item.BillCode == "A") BillOtherApprove(tableName,item, DataHeader);
+                    else if (item.BillCode == "Q") QuoteApprove(item, DataHeader);
                 }
                 catch (MySqlException ex)
                 {
@@ -799,7 +800,7 @@ WHERE up.`IsSukses`=0 AND LEFT(up.`PolisNo`,1)='X';
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(" Exception SubmitTransaction ERROR =>" + ex.Message);
+                    Console.WriteLine("Exception SubmitTransaction ERROR =>" + ex.Message);
                 }
 
             }
@@ -976,23 +977,21 @@ SELECT LAST_INSERT_ID();";
                 // Insert EmailQuee
                 var emailThanks = new EmailThanksRecuring(Convert.ToInt32(DataProses.BillingID), DataProses.Amount, DataHeader.tglSkrg);
                 emailThanks.InsertEmailQuee();
-                //Task.Run(async () => emailThanks.InsertEmailQuee()).Wait();
                 tr.Commit();
             }
             catch (Exception ex)
             {
                 tr.Rollback();
-                Console.WriteLine("RecurringApprove ERROR =>" + ex.Message);
+                var LogError = new ErrorLog(DataHeader.trancode, DataProses.PolisNo, DataProses.IsSukses, "RecurringApprove : " + ex.Message);
             }
             finally
             {
                 con.Close();
             }
-
             Console.WriteLine("Finish");
         }
 
-        public static async Task BillOtherApprove(DataSubmitModel DataProses, FileResultModel DataHeader)
+        public static void BillOtherApprove(string tableName, DataSubmitModel DataProses, FileResultModel DataHeader)
         {
             if ((DataProses.BillingID == null) || (DataProses.BillingID == "")) return;
 
@@ -1009,21 +1008,104 @@ SELECT LAST_INSERT_ID();";
                 cmd.Connection = con;
                 cmd.Transaction = tr;
 
+                // Create History Transaction
+                cmd.CommandType = CommandType.Text;
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+INSERT `jbsdb`.`transaction_bank`(`File_Backup`,`TranCode`,`PolicyId`,`BillingID`,`BillAmount`,`ApprovalCode`,`Description`,`accNo`,`accName`)
+values (@FileBackup,@TranCode,@PolicyId,@BillingID,@BillAmount,@ApprovalCode,@Description,@accNo,@accName);
+SELECT LAST_INSERT_ID();";
+                cmd.Parameters.Add(new MySqlParameter("@FileBackup", MySqlDbType.VarChar) { Value = DataHeader.FileSaveName });
+                cmd.Parameters.Add(new MySqlParameter("@TranCode", MySqlDbType.VarChar) { Value = DataHeader.trancode });
+                cmd.Parameters.Add(new MySqlParameter("@PolicyId", MySqlDbType.VarChar) { Value = DataProses.PolisId });
+                cmd.Parameters.Add(new MySqlParameter("@BillingID", MySqlDbType.VarChar) { Value = DataProses.BillingID });
+                cmd.Parameters.Add(new MySqlParameter("@BillAmount", MySqlDbType.VarChar) { Value = DataProses.Amount });
+                cmd.Parameters.Add(new MySqlParameter("@ApprovalCode", MySqlDbType.VarChar) { Value = DataProses.ApprovalCode });
+                cmd.Parameters.Add(new MySqlParameter("@Description", MySqlDbType.VarChar) { Value = DataProses.Deskripsi });
+                cmd.Parameters.Add(new MySqlParameter("@accNo", MySqlDbType.VarChar) { Value = DataProses.AccNo });
+                cmd.Parameters.Add(new MySqlParameter("@accName", MySqlDbType.VarChar) { Value = DataProses.AccName });
+                DataProses.TransHistory = cmd.ExecuteScalar().ToString();
+                Console.Write(String.Format("TransHistory={0} ... ", DataProses.TransHistory));
+
+                // Insert Receipt Other
+                cmd.CommandType = CommandType.Text;
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"
+INSERT INTO `prod_life21`.`receipt_other`(`receipt_date`,`policy_id`,`receipt_type_id`,`receipt_amount`,`receipt_source`,`receipt_payment_date`,`receipt_seq`,`bank_acc_id`,`acquirer_bank_id`)
+SELECT @tgl,b.`policy_id`,3,b.`cashless_fee_amount`,@source,@tgl,b.`recurring_seq`,@bankAccId,@bankid
+FROM " + tableName + @" up
+LEFT JOIN `billing` b ON b.`BillingID`=@Billid
+WHERE up.`seqid`=@SeqId AND up.`PolisNo`=@PolisNo;
+SELECT LAST_INSERT_ID();";
+                cmd.Parameters.Add(new MySqlParameter("@SeqId", MySqlDbType.Int32) { Value = DataProses.seqid });
+                cmd.Parameters.Add(new MySqlParameter("@PolisNo", MySqlDbType.VarChar) { Value = DataProses.PolisNo });
+                cmd.Parameters.Add(new MySqlParameter("@Billid", MySqlDbType.Int32) { Value = DataProses.BillingID });
+                cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                cmd.Parameters.Add(new MySqlParameter("@source", MySqlDbType.VarChar) { Value = DataHeader.source });
+                cmd.Parameters.Add(new MySqlParameter("@bankAccId", MySqlDbType.Int32) { Value = DataHeader.bankid_receipt });
+                cmd.Parameters.Add(new MySqlParameter("@bankid", MySqlDbType.Int32) { Value = DataHeader.bankid });
+                DataProses.receiptOtherID = cmd.ExecuteScalar().ToString();
+                Console.Write(String.Format("receiptOtherID={0} ... ", DataProses.receiptOtherID));
+
+                // Update Life21 CC Transaction
+                cmd.CommandType = CommandType.Text;
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"UPDATE `prod_life21`.`policy_cc_transaction` pc
+                                INNER JOIN `billing_others` bo ON bo.`Life21TranID`=pc.`policy_cc_tran_id`
+                                    SET pc.status_id=2,
+	                                pc.result_status=@rstStatus,
+	                                pc.Remark='APPROVED',
+	                                pc.receipt_other_id=@receiptID,
+	                                pc.update_dt=@tgl
+                                    WHERE bo.`BillingID`=@id;";
+                cmd.Parameters.Add(new MySqlParameter("@rstStatus", MySqlDbType.VarChar) { Value = DataProses.ApprovalCode });
+                cmd.Parameters.Add(new MySqlParameter("@receiptID", MySqlDbType.Int32) { Value = DataProses.receiptOtherID });
+                cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                cmd.Parameters.Add(new MySqlParameter("@id", MySqlDbType.VarChar) { Value = DataProses.BillingID });
+                cmd.ExecuteNonQuery();
+
+                // Update Billing Other JBS
+                cmd.CommandType = CommandType.Text;
+                cmd.Parameters.Clear();
+                cmd.CommandText = @"UPDATE `billing_others` SET `IsDownload`=0,
+			                                `IsClosed`=1,
+			                                `status_billing`='P',
+                                            `PaymentSource`='CC',
+			                                `LastUploadDate`=@tgl,
+                                            BankIdPaid=@bankid,
+                                            `PaidAmount`=@PaidAmount,
+                                            Life21TranID=@TransactionID,
+			                                `ReceiptOtherID`=@receiptID,
+			                                `PaymentTransactionID`=@uid,
+                                            UserUpload='system'
+		                                WHERE `BillingID`=@idBill;";
+
+                cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                cmd.Parameters.Add(new MySqlParameter("@bankid", MySqlDbType.Int32) { Value = DataHeader.bankid });
+                cmd.Parameters.Add(new MySqlParameter("@receiptID", MySqlDbType.Int32) { Value = DataProses.receiptOtherID });
+                cmd.Parameters.Add(new MySqlParameter("@rstStatus", MySqlDbType.VarChar) { Value = DataProses.ApprovalCode });
+                cmd.Parameters.Add(new MySqlParameter("@uid", MySqlDbType.VarChar) { Value = DataProses.TransHistory });
+                cmd.Parameters.Add(new MySqlParameter("@idBill", MySqlDbType.VarChar) { Value = DataProses.BillingID });
+                cmd.ExecuteNonQuery();
+                Console.Write(String.Format("BillingID={0} ... ", DataProses.BillingID));
+
+                var emailEndorsThanks = new EmailThanksEndorsemen(Convert.ToInt32(DataProses.BillingID), DataProses.Amount, DataHeader.tglSkrg);
+                emailEndorsThanks.InsertEmailQuee();
+
                 tr.Commit();
             }
             catch (Exception ex)
             {
                 tr.Rollback();
-                Console.WriteLine("BillOtherApprove Error =>" + ex.Message);
+                var LogError = new ErrorLog(DataHeader.trancode, DataProses.PolisNo, DataProses.IsSukses, "BillOtherApprove : " + ex.Message);
             }
             finally
             {
-                Task.WaitAll();
-                await con.CloseAsync();
+                con.Close();
             }
         }
 
-        public static async Task QuoteApprove(DataSubmitModel DataProses, FileResultModel DataHeader)
+        public static void QuoteApprove(DataSubmitModel DataProses, FileResultModel DataHeader)
         {
             if ((DataProses.BillingID == null) || (DataProses.BillingID == "")) return;
             MySqlConnection con = new MySqlConnection(constring);
@@ -1110,21 +1192,18 @@ SELECT LAST_INSERT_ID();";
 
                 // Insert EmailQuee
                 var emailQuoteThanks = new EmailThanksQuote(Convert.ToInt32(DataProses.BillingID), DataProses.Amount, DataHeader.tglSkrg);
-                //emailThanks.InsertEmailQuee();
                 emailQuoteThanks.InsertEmailQuee();
-                //Task.Run(async () => emailThanks.InsertEmailQuee()).Wait();
 
                 tr.Commit();
             }
             catch (Exception ex)
             {
                 tr.Rollback();
-                Console.WriteLine("QuoteApprove Error =>" + ex.Message);
+                var LogError = new ErrorLog(DataHeader.trancode, DataProses.PolisNo, DataProses.IsSukses, "QuoteApprove : " + ex.Message);
             }
             finally
             {
-                Task.WaitAll();
-                await con.CloseAsync();
+                con.Close();
             }
         }
 
@@ -1138,18 +1217,17 @@ SELECT LAST_INSERT_ID();";
                 try
                 {
                     Console.Write(String.Format("{0} ", i));
-                    RejectTransaction(item, DataHeader).Wait();
+                    RejectTransaction(tableName,item, DataHeader);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine("RejectTransaction =>" + ex.Message);
                 }
             }
-            Task.WaitAll();
             Console.WriteLine("RejectTransaction Finish ....");
         }
 
-        public static async Task RejectTransaction(DataRejectModel DataProses, FileResultModel DataHeader)
+        public static void RejectTransaction(string tableName, DataRejectModel DataProses, FileResultModel DataHeader)
         {
             MySqlConnection con = new MySqlConnection(constring);
             MySqlTransaction tr = null;
@@ -1161,93 +1239,129 @@ SELECT LAST_INSERT_ID();";
                 tr = con.BeginTransaction();
                 cmd.Connection = con;
                 cmd.Transaction = tr;
-
-                cmd.CommandType = CommandType.Text;
-                cmd.Parameters.Clear();
-                cmd.CommandText = @"
-INSERT `jbsdb`.`transaction_bank`(`File_Backup`,`TranCode`,`PolicyId`,`BillingID`,`BillAmount`,`ApprovalCode`,`Description`,`accNo`,`accName`)
-SELECT @FileBackup,@TranCode,b.`policy_id`,b.`BillingID`,@BillAmount,@ApprovalCode,@Description,
-    COALESCE(IFNULL(@accNo,''),b.`AccNo`,pc.`cc_no`),COALESCE(IFNULL(@accName,''),b.`AccName`,pc.`cc_name`)
-FROM `billing` b
-INNER JOIN `policy_billing` pb ON pb.`policy_Id`=b.`policy_id`
-INNER JOIN `policy_cc` pc ON pc.`PolicyId`=pb.`policy_Id`
-WHERE pb.`policy_no`=@polisno
-AND b.`status_billing` IN ('A','C')
-ORDER BY b.`recurring_seq` ASC
-LIMIT 1;
-SELECT LAST_INSERT_ID();";
-                cmd.Parameters.Add(new MySqlParameter("@FileBackup", MySqlDbType.VarChar) { Value = DataHeader.FileSaveName });
-                cmd.Parameters.Add(new MySqlParameter("@TranCode", MySqlDbType.VarChar) { Value = DataHeader.trancode });
-                cmd.Parameters.Add(new MySqlParameter("@BillAmount", MySqlDbType.VarChar) { Value = DataProses.Amount });
-                cmd.Parameters.Add(new MySqlParameter("@ApprovalCode", MySqlDbType.VarChar) { Value = DataProses.ApprovalCode });
-                cmd.Parameters.Add(new MySqlParameter("@Description", MySqlDbType.VarChar) { Value = DataProses.Deskripsi });
-                cmd.Parameters.Add(new MySqlParameter("@accNo", MySqlDbType.VarChar) { Value = DataProses.AccNo });
-                cmd.Parameters.Add(new MySqlParameter("@accName", MySqlDbType.VarChar) { Value = DataProses.AccName });
-                cmd.Parameters.Add(new MySqlParameter("@accName", MySqlDbType.VarChar) { Value = DataProses.AccName });
-                DataProses.TransHistory = cmd.ExecuteScalar().ToString();
-                Console.Write(String.Format("TransHistory={0} ... ", DataProses.TransHistory));
-
-                cmd.CommandType = CommandType.Text;
-                cmd.Parameters.Clear();
+                
                 if (DataProses.BillCode == "B")
                 {
-                    // Update Billing JBS                    
+                    // insert History jbs
+                    cmd.CommandType = CommandType.Text;
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+INSERT INTO transaction_bank(`File_Backup`,`TranCode`,`TranDate`,`IsSuccess`,`PolicyId`,`BillingID`,
+    `BillAmount`,`ApprovalCode`,`Description`,`accNo`,`accName`)
+SELECT @FileBackup,@TranCode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,
+    up.`Amount`,up.`ApprovalCode`,up.`Deskripsi`,COALESCE(up.`AccNo`,pc.`cc_no`),COALESCE(up.`AccName`,pc.`cc_name`)
+FROM " + tableName + @" up
+INNER JOIN `billing` b ON b.`BillingID`=up.`BillingID`
+INNER JOIN `policy_cc` pc ON pc.`PolicyId`=b.`policy_id`
+WHERE b.`BillingID`=@BillingID;
+SELECT LAST_INSERT_ID();";
+                    cmd.Parameters.Add(new MySqlParameter("@FileBackup", MySqlDbType.VarChar) { Value = DataHeader.FileSaveName });
+                    cmd.Parameters.Add(new MySqlParameter("@TranCode", MySqlDbType.VarChar) { Value = DataHeader.trancode });
+                    cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                    cmd.Parameters.Add(new MySqlParameter("@BillingID", MySqlDbType.Int32) { Value = DataProses.BillingID });
+                    DataProses.TransHistory = cmd.ExecuteScalar().ToString();
+                    Console.Write(String.Format("TransHistory={0} ... ", DataProses.TransHistory));
+
+                    // Update Billing JBS
+                    cmd.CommandType = CommandType.Text;
+                    cmd.Parameters.Clear();
                     cmd.CommandText = @"UPDATE `billing` bb
-                                        INNER JOIN (
-	                                        SELECT b.`BillingID`
-	                                        FROM `billing` b
-	                                        INNER JOIN `policy_billing` pb ON pb.`policy_Id`=b.`policy_id`
-	                                        WHERE b.`status_billing` IN ('A','C') AND pb.`policy_no`=@polisno
-	                                        ORDER BY b.`recurring_seq` ASC
-	                                        LIMIT 1
-                                        )bx ON bb.`BillingID`=bx.`BillingID`
                                         SET bb.`IsDownload`=0,
                                         bb.`PaymentTransactionID`=@uid,
                                         bb.`LastUploadDate`=@tgl,
                                         bb.`UserUpload`='system'
-                                    WHERE bb.`status_billing` IN ('A','C');";
+                                    WHERE bb.`BillingID`=@idBill AND bb.`status_billing` IN ('A','C');";
                     cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
                     cmd.Parameters.Add(new MySqlParameter("@uid", MySqlDbType.Int32) { Value = DataProses.TransHistory });
-                    cmd.Parameters.Add(new MySqlParameter("@polisno", MySqlDbType.Int32) { Value = DataProses.PolisNo });
+                    cmd.Parameters.Add(new MySqlParameter("@idBill", MySqlDbType.Int32) { Value = DataProses.BillingID });
+                    cmd.ExecuteNonQuery();
                 }
                 else if (DataProses.BillCode == "A")
                 {
+                    // insert History jbs
+                    cmd.CommandType = CommandType.Text;
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+INSERT INTO transaction_bank(`File_Backup`,`TranCode`,`TranDate`,`IsSuccess`,`PolicyId`,`BillingID`,
+    `BillAmount`,`ApprovalCode`,`Description`,`accNo`,`accName`)
+SELECT @FileBackup,@TranCode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,
+    up.`Amount`,up.`ApprovalCode`,up.`Deskripsi`,COALESCE(up.`AccNo`,pc.`cc_no`),COALESCE(up.`AccName`,pc.`cc_name`)
+FROM " + tableName + @" up
+INNER JOIN `billing_others` b ON b.`BillingID`=up.`BillingID`
+INNER JOIN `policy_cc` pc ON pc.`PolicyId`=b.`policy_id`
+WHERE b.`BillingID`=@BillingID;
+SELECT LAST_INSERT_ID();";
+                    cmd.Parameters.Add(new MySqlParameter("@FileBackup", MySqlDbType.VarChar) { Value = DataHeader.FileSaveName });
+                    cmd.Parameters.Add(new MySqlParameter("@TranCode", MySqlDbType.VarChar) { Value = DataHeader.trancode });
+                    cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                    cmd.Parameters.Add(new MySqlParameter("@BillingID", MySqlDbType.VarChar) { Value = DataProses.BillingID });
+                    DataProses.TransHistory = cmd.ExecuteScalar().ToString();
+                    Console.Write(String.Format("TransHistory={0} ... ", DataProses.TransHistory));
+
+                    // Update Billing JBS
+                    cmd.CommandType = CommandType.Text;
+                    cmd.Parameters.Clear();
                     cmd.CommandText = @"UPDATE `billing_others` 
                                         SET `IsDownload`=0,
                                         `BillingDate`=COALESCE(`BillingDate`,@tgl),
                                         `PaymentTransactionID`=@uid,
                                         `LastUploadDate`=@tgl,
                                         `UserUpload`='system' 
-                                        WHERE `quote_id`=@billid AND `status_billing` in ('A','C')";
+                                        WHERE `quote_id`=@idBill AND `status_billing` in ('A','C')";
+                    cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                    cmd.Parameters.Add(new MySqlParameter("@uid", MySqlDbType.Int32) { Value = DataProses.TransHistory });
+                    cmd.Parameters.Add(new MySqlParameter("@idBill", MySqlDbType.Int32) { Value = DataProses.BillingID });
+                    cmd.ExecuteNonQuery();
                 }
                 else if (DataProses.BillCode == "Q")
                 {
+                    // insert History jbs
+                    cmd.CommandType = CommandType.Text;
+                    cmd.Parameters.Clear();
+                    cmd.CommandText = @"
+INSERT INTO transaction_bank(`File_Backup`,`TranCode`,`TranDate`,`IsSuccess`,`PolicyId`,`BillingID`,
+    `BillAmount`,`ApprovalCode`,`Description`,`accNo`,`accName`)
+SELECT @FileBackup,@TranCode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,
+    up.`Amount`,up.`ApprovalCode`,up.`Deskripsi`,COALESCE(up.`AccNo`,qb.`acc_no`),COALESCE(up.`AccName`,qb.`acc_name`)
+FROM " + tableName + @" up
+INNER JOIN `quote_billing` qb ON qb.`quote_id`=up.`BillingID`
+WHERE up.`BillingID`=@BillingID;
+SELECT LAST_INSERT_ID();";
+                    cmd.Parameters.Add(new MySqlParameter("@FileBackup", MySqlDbType.VarChar) { Value = DataHeader.FileSaveName });
+                    cmd.Parameters.Add(new MySqlParameter("@TranCode", MySqlDbType.VarChar) { Value = DataHeader.trancode });
+                    cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                    cmd.Parameters.Add(new MySqlParameter("@BillingID", MySqlDbType.Int32) { Value = DataProses.BillingID });
+                    DataProses.TransHistory = cmd.ExecuteScalar().ToString();
+                    Console.Write(String.Format("TransHistory={0} ... ", DataProses.TransHistory));
+
+                    // Update Billing JBS
+                    cmd.CommandType = CommandType.Text;
+                    cmd.Parameters.Clear();
                     cmd.CommandText = @"UPDATE `quote_billing` 
                                         SET `IsDownload`=0,
                                         `BillingDate`=COALESCE(`BillingDate`,@tgl),
                                         `PaymentTransactionID`=@uid,
                                         `LastUploadDate`=@tgl,
                                         `UserUpload`='system' 
-                                        WHERE `quote_id`=@billid AND `status` in ('A','C')";
+                                        WHERE `quote_id`=@idBill AND `status` in ('A','C')";
+                    cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
+                    cmd.Parameters.Add(new MySqlParameter("@uid", MySqlDbType.Int32) { Value = DataProses.TransHistory });
+                    cmd.Parameters.Add(new MySqlParameter("@idBill", MySqlDbType.Int32) { Value = DataProses.BillingID });
+                    cmd.ExecuteNonQuery();
                 }
-                cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
-                cmd.Parameters.Add(new MySqlParameter("@uid", MySqlDbType.Int32) { Value = DataProses.TransHistory });
-                cmd.Parameters.Add(new MySqlParameter("@idBill", MySqlDbType.Int32) { Value = DataProses.PolisNo.Substring(1) });
-                cmd.ExecuteNonQuery();
+                
+                Console.Write(String.Format("BillID={0} ... ", DataProses.BillingID));
                 tr.Commit();
             }
             catch (Exception ex)
             {
                 tr.Rollback();
-                Console.WriteLine("InsertHistoryTransaction =>" + ex.Message);
+                Console.WriteLine("InsertHistoryTransaction ERROR =>" + ex.Message);
             }
             finally
             {
-                Task.WaitAll();
-                await con.CloseAsync();
+                con.Close();
             }
-
         }
-
     }
 }
