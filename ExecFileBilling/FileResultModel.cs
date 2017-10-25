@@ -16,6 +16,7 @@ namespace ExecFileBilling
         public DateTime tglProses { get; set; }
         public DateTime tglSkrg { get; set; }
         public int bankid_receipt { get; set; }
+        public int bankid { get; set; }
         public int id_billing_download { get; set; }
         public string deskripsi { get; set; }
     }
