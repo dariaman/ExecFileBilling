@@ -9,6 +9,7 @@ namespace ExecFileBilling
     class DataRejectModel
     {
         public string PolisNo { get; set; }
+        public int PolisId { get; set; }
         public string BillingID { get; set; }
         public Decimal Amount { get; set; }
         public string ApprovalCode { get; set; }

@@ -105,7 +105,7 @@ this.Amount.ToString("#,###"));
             }
             catch (Exception ex)
             {
-                throw new Exception(ex.Message);
+                throw new Exception("EmailThanksQuote initialEmail() : " + ex.Message);
             }
             finally
             {
@@ -130,12 +130,12 @@ VALUES (@email_to, @email_subject, @email_body, @tgl, 'P', @email_bcc, 'UploadCC
             {
                 con.Open();
                 cmd.ExecuteNonQuery();
-                Console.Write(" Email Send >>>");
+                //Console.Write(" Email Send >>>");
             }
             catch (Exception ex)
             {
-                Console.Write(" ... E R R O R");
-                throw new Exception(ex.Message);
+                //Console.Write(" ... E R R O R");
+                throw new Exception("EmailThanksQuote InsertEmailQuee() : " + ex.Message);
             }
             finally
             {

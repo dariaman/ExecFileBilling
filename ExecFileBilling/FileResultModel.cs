@@ -10,6 +10,7 @@ namespace ExecFileBilling
     {
         public int Id { get; set; }
         public string trancode { get; set; }
+        public string FileBilling { get; set; }
         public string FileName { get; set; }
         public string FileSaveName { get; set; }
         public string source { get; set; }

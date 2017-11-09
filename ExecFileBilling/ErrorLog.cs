@@ -30,14 +30,16 @@ namespace ExecFileBilling
             }
             catch(Exception ex)
             {
-                Console.WriteLine();
-                Console.Write(" >> GAGAL LOG : " + ex.Message);
+                throw new Exception(ex.Message);
+                //Console.WriteLine();
+                //Console.Write(" >> GAGAL LOG : " + ex.Message);
             }
         }
 
         private void InsertLog()
         {
             MySqlConnection con = new MySqlConnection(constring);
+            con.Open();
             MySqlCommand cmd = new MySqlCommand(@"INSERT INTO `ErrorLogUpload`(`trancode`,`PolisNo`,`IsSukses`,`ErrorMessage`)
                                         SELECT @TranCode,@PolisNo,@IsSukses,@ErrorMessage", con);
             cmd.CommandType = CommandType.Text;
@@ -48,6 +50,7 @@ namespace ExecFileBilling
             cmd.Parameters.Add(new MySqlParameter("@ErrorMessage", MySqlDbType.VarChar) { Value = this.ErrorMessage });
 
             cmd.ExecuteNonQuery();
+            con.Close();
         }
 
     }

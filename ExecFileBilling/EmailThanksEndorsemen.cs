@@ -14,7 +14,7 @@ namespace ExecFileBilling
         static string constring = ConfigurationManager.AppSettings["DefaultDB"];
         public string BCCTo = ConfigurationManager.AppSettings["EmailPHS"];
 
-        private int BillingID { get; set; }
+        private string BillingID { get; set; }
         private string SendTo { get; set; }
         private string SubjectEmail { get; set; }
         private string BodyEmail { get; set; }
@@ -22,7 +22,7 @@ namespace ExecFileBilling
         private DateTime Tgl { get; set; }
         private Decimal Amount { get; set; }
 
-        public EmailThanksEndorsemen(int billingID, Decimal jlhBayar, DateTime? tgl)
+        public EmailThanksEndorsemen(string billingID, Decimal jlhBayar, DateTime? tgl)
         {
             this.BillingID = billingID;
             this.Tgl = tgl ?? DateTime.Now;
@@ -30,7 +30,7 @@ namespace ExecFileBilling
             initialEmail(this.BillingID);
         }
 
-        private void initialEmail(int billID)
+        private void initialEmail(string billID)
         {
             MySqlConnection con = new MySqlConnection(constring);
             MySqlCommand cmd;
@@ -44,7 +44,7 @@ INNER JOIN `customer_info` ci ON ci.`CustomerId`=pb.`holder_id`
 INNER JOIN `product` pd ON pd.`product_id`=pb.`product_id`
 WHERE bo.`BillingID`=@billID;", con);
             cmd.CommandType = CommandType.Text;
-            cmd.Parameters.Add(new MySqlParameter("@billID", MySqlDbType.Int32) { Value = this.BillingID });
+            cmd.Parameters.Add(new MySqlParameter("@billID", MySqlDbType.VarChar) { Value = this.BillingID });
             try
             {
                 con.Open();
@@ -67,7 +67,7 @@ rd["product_description"].ToString(), rd["policy_no"].ToString(),this.Amount.ToS
             }
             catch (Exception ex)
             {
-                throw new Exception(ex.Message);
+                throw new Exception("EmailThanksEndorsemen initialEmail : " + ex.Message);
             }
             finally
             {
@@ -95,7 +95,7 @@ VALUES (@email_to, @email_subject, @email_body, @tgl, 'P', @email_bcc, 'UploadCC
             }
             catch (Exception ex)
             {
-                throw new Exception(ex.Message);
+                throw new Exception("EmailThanksEndorsemen InsertEmailQuee : " + ex.Message);
             }
             finally
             {
