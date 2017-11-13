@@ -31,7 +31,7 @@ namespace ExecFileBilling
             var Fileproses = genFile();
             List<DataUploadModel> DataUpload;
             List<DataSubmitModel> DataProses;
-            List<DataRejectModel> DataReject;
+            //List<DataRejectModel> DataReject;
 
             DateTime tglSekarang = DateTime.Now;
 
@@ -41,7 +41,7 @@ namespace ExecFileBilling
                 item.tglSkrg = DateTime.Now;
                 DataUpload = new List<DataUploadModel>();
                 DataProses = new List<DataSubmitModel>();
-                DataReject = new List<DataRejectModel>();
+                //DataReject = new List<DataRejectModel>();
                 Console.WriteLine(item.FileName);
                 switch (item.Id)
                 {
@@ -58,8 +58,8 @@ namespace ExecFileBilling
                         DataUpload = BacaFileBCA(item);
                         InsertTableStaging(DataUpload, BCA_TEMP_TABLE);
                         MapingDataReject(BCA_TEMP_TABLE);
-                        DataReject = PoolDataProsesReject(BCA_TEMP_TABLE);
-                        SubmitRejectTransaction(BCA_TEMP_TABLE, DataReject, item);
+                        //DataReject = PoolDataProsesReject(BCA_TEMP_TABLE);
+                        SubmitRejectTransaction(BCA_TEMP_TABLE, item);
                         break;
                     case 3: // Mandiri
                         KosongkanTabel();
@@ -71,8 +71,8 @@ namespace ExecFileBilling
 
                         //Proses yang reject
                         MapingDataReject(MANDIRI_TEMP_TABLE);
-                        DataReject = PoolDataProsesReject(MANDIRI_TEMP_TABLE);
-                        SubmitRejectTransaction(MANDIRI_TEMP_TABLE, DataReject, item);
+                        //DataReject = PoolDataProsesReject(MANDIRI_TEMP_TABLE);
+                        SubmitRejectTransaction(MANDIRI_TEMP_TABLE, item);
                         break;
                     case 4: // Mega On US
                         KosongkanTabel();
@@ -84,8 +84,8 @@ namespace ExecFileBilling
 
                         //Proses yang reject
                         MapingDataReject(MEGAOnUs_TEMP_TABLE);
-                        DataReject = PoolDataProsesReject(MEGAOnUs_TEMP_TABLE);
-                        SubmitRejectTransaction(MEGAOnUs_TEMP_TABLE, DataReject, item);
+                        //DataReject = PoolDataProsesReject(MEGAOnUs_TEMP_TABLE);
+                        SubmitRejectTransaction(MEGAOnUs_TEMP_TABLE, item);
                         break;
                     case 5: // Mega Off Us
                         KosongkanTabel();
@@ -97,8 +97,8 @@ namespace ExecFileBilling
 
                         //Proses yang reject
                         MapingDataReject(MEGAOffUs_TEMP_TABLE);
-                        DataReject = PoolDataProsesReject(MEGAOffUs_TEMP_TABLE);
-                        SubmitRejectTransaction(MEGAOffUs_TEMP_TABLE, DataReject, item);
+                        //DataReject = PoolDataProsesReject(MEGAOffUs_TEMP_TABLE);
+                        SubmitRejectTransaction(MEGAOffUs_TEMP_TABLE, item);
                         break;
                     case 6: // BNI
                         KosongkanTabel();
@@ -110,8 +110,8 @@ namespace ExecFileBilling
 
                         //Proses yang reject
                         MapingDataReject(BNI_TEMP_TABLE);
-                        DataReject = PoolDataProsesReject(BNI_TEMP_TABLE);
-                        SubmitRejectTransaction(BNI_TEMP_TABLE, DataReject, item);
+                        //DataReject = PoolDataProsesReject(BNI_TEMP_TABLE);
+                        SubmitRejectTransaction(BNI_TEMP_TABLE, item);
                         break;
                 }
                 removeFile(item);
@@ -353,8 +353,8 @@ namespace ExecFileBilling
                 
                 cmd.ExecuteNonQuery();
 
-                FileInfo Filex = new FileInfo(FileBilling + Fileproses.FileBilling);
-                if (Filex.Exists) Filex.MoveTo(BillingBackup + Fileproses.FileBilling + Guid.NewGuid().ToString().Substring(0, 8));
+                FileInfo Filex = new FileInfo(FileBilling.Trim() + Fileproses.FileBilling.Trim());
+                if (Filex.Exists) Filex.MoveTo(BillingBackup.Trim() + Fileproses.FileBilling.Trim() + Guid.NewGuid().ToString().Substring(0, 8).Trim());
             }
             catch (Exception ex)
             {
@@ -726,7 +726,6 @@ WHERE up.`IsSukses`=1 AND LEFT(up.`PolisNo`,1)='X';", con);
             MySqlConnection con = new MySqlConnection(constring);
             MySqlCommand cmd;
             cmd = new MySqlCommand(@"
-
 SET @prev_value := 0;
 SET @rank_count := 0;
 DROP TEMPORARY TABLE IF EXISTS billx;
@@ -1221,7 +1220,7 @@ SELECT LAST_INSERT_ID();";
             }
         }
 
-        public static void SubmitRejectTransaction(string tableName, List<DataRejectModel> DataProses, FileResultModel DataHeader)
+        public static void SubmitRejectTransaction(string tableName, FileResultModel DataHeader)
         {
             Console.WriteLine("RejectTransaction Begin ....");
 
@@ -1253,24 +1252,26 @@ FROM  INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA = 'jbsdb' AND TABLE_NAME='transaction_bank';
 
 INSERT INTO transaction_bank(`File_Backup`,`TranCode`,`TranDate`,`IsSuccess`,`PolicyId`,`BillingID`,`BillAmount`,`ApprovalCode`,`Description`,`accNo`,`accName`)
-SELECT @FileName,@Trancode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,up.`Amount`,up.`ApprovalCode`,up.`Deskripsi`,
+SELECT @FileName,@Trancode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,up.`Amount`,up.`ApprovalCode`,
+COALESCE(CONCAT(rm.`reject_reason_bank`,' - ',rm.`reject_reason_caf`), up.`Deskripsi`),
 COALESCE(up.`AccNo`,b.`AccNo`,pc.`cc_no`),COALESCE(up.`AccName`,b.`AccName`,pc.`cc_name`)
 FROM " + tableName + @" up
 INNER JOIN `billing` b ON b.`BillingID`=up.`BillingID` 
+LEFT JOIN `reject_reason_map` rm ON rm.`reject_code`=up.`ApprovalCode`
 LEFT JOIN `policy_cc` pc ON pc.`PolicyId`=b.`policy_id`
 WHERE up.`IsSukses`=0 AND up.`BillCode`='B' AND up.`BillingID` IS NOT NULL;
 
 UPDATE `billing` b
 INNER JOIN " + tableName + @" up ON up.`BillingID`=b.`BillingID`
-INNER JOIN transaction_bank tb ON tb.`BillingID`=up.`BillingID`
+LEFT JOIN transaction_bank tb ON tb.`BillingID`=up.`BillingID` AND tb.`id` >= @tbid
 	SET b.`IsDownload`=0,
 	b.`LastUploadDate`=@tgl,
 	b.`PaymentTransactionID`=tb.`id`,
 	b.`BankIdDownload`=@BankIdDwD,
 	b.`Source_download`='CC',
 	b.`BillingDate`=COALESCE(b.`BillingDate`,@tgl)
-WHERE b.`status_billing` IN ('A','C') AND up.`BillingID` IS NOT NULL AND up.`BillCode`='B'
-	AND tb.`id` >= @tbid;";
+WHERE b.`status_billing` IN ('A','C') AND up.`BillingID` IS NOT NULL AND up.`BillCode`='B';
+";
                 cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
                 cmd.Parameters.Add(new MySqlParameter("@BankIdDwD", MySqlDbType.Int32) { Value = DataHeader.bankid });
                 cmd.Parameters.Add(new MySqlParameter("@FileName", MySqlDbType.VarChar) { Value = DataHeader.FileName });
@@ -1302,10 +1303,12 @@ FROM  INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA = 'jbsdb' AND TABLE_NAME='transaction_bank';
 
 INSERT INTO transaction_bank(`File_Backup`,`TranCode`,`TranDate`,`IsSuccess`,`PolicyId`,`BillingID`,`BillAmount`,`ApprovalCode`,`Description`,`accNo`,`accName`)
-SELECT @FileName,@Trancode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,up.`Amount`,up.`ApprovalCode`,up.`Deskripsi`,
+SELECT @FileName,@Trancode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,up.`Amount`,up.`ApprovalCode`,
+COALESCE(CONCAT(rm.`reject_reason_bank`,' - ',rm.`reject_reason_caf`), up.`Deskripsi`),
 COALESCE(up.`AccNo`,b.`AccNo`,pc.`cc_no`),COALESCE(up.`AccName`,b.`AccName`,pc.`cc_name`)
 FROM " + tableName + @" up
 INNER JOIN `billing_others` b ON b.`BillingID`=up.`PolisNo`
+LEFT JOIN `reject_reason_map` rm ON rm.`reject_code`=up.`ApprovalCode`
 LEFT JOIN `policy_cc` pc ON pc.`PolicyId`=b.`policy_id`
 WHERE up.`IsSukses`=0 AND up.`BillCode`='A' AND up.`BillingID` IS NOT NULL;
 
@@ -1349,10 +1352,12 @@ FROM  INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA = 'jbsdb' AND TABLE_NAME='transaction_bank';
 
 INSERT INTO transaction_bank(`File_Backup`,`TranCode`,`TranDate`,`IsSuccess`,`PolicyId`,`BillingID`,`BillAmount`,`ApprovalCode`,`Description`,`accNo`,`accName`)
-SELECT @FileName,@Trancode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,up.`Amount`,up.`ApprovalCode`,up.`Deskripsi`,
+SELECT @FileName,@Trancode,@tgl,up.`IsSukses`,up.`PolisId`,up.`BillingID`,up.`Amount`,up.`ApprovalCode`,
+COALESCE(CONCAT(rm.`reject_reason_bank`,' - ',rm.`reject_reason_caf`), up.`Deskripsi`),
 COALESCE(up.`AccNo`,q.`acc_no`),COALESCE(up.`AccName`,q.`acc_name`)
 FROM " + tableName + @" up
 INNER JOIN `quote_billing` q ON q.`quote_id`=up.`BillingID`
+LEFT JOIN `reject_reason_map` rm ON rm.`reject_code`=up.`ApprovalCode`
 WHERE up.`IsSukses`=0 AND up.`BillCode`='Q' AND up.`BillingID` IS NOT NULL;
 
 UPDATE `quote_billing` q
