@@ -480,6 +480,8 @@ namespace ExecFileBilling
 
                 // Sheet Reject (sheet 2) 
                 ws = wb.Worksheets[2];
+                startCell = ws.Dimension.Start;
+                endCell = ws.Dimension.End;
                 for (int row = startCell.Row; row <= endCell.Row; row++)
                 {
                     if ((ws.Cells[row, 2].Value == null) || (ws.Cells[row, 3].Value == null) ||
@@ -540,6 +542,8 @@ namespace ExecFileBilling
 
                 // Sheet Reject (sheet 2) 
                 ws = wb.Worksheets[2];
+                startCell = ws.Dimension.Start;
+                endCell = ws.Dimension.End;
                 for (int row = startCell.Row; row <= endCell.Row; row++)
                 {
                     if ((ws.Cells[row, 1].Value == null) || (ws.Cells[row, 2].Value == null) ||
@@ -918,7 +922,8 @@ SELECT LAST_INSERT_ID();";
                 cmd.CommandText = @"
 INSERT INTO `prod_life21`.`policy_cc_transaction`(`policy_id`,`transaction_dt`,`transaction_type`,`recurring_seq`,
 `count_times`,`currency`,`total_amount`,`due_date_pre`,`due_date_pre_period`,`acquirer_bank_id`,
-`cc_no`,`cc_name`,`status_id`,`remark`,`receipt_id`,`receipt_other_id`,`created_dt`)
+COALESCE(NULLIF(up.`AccNo`,''),NULLIF(b.`AccNo`,''),pc.`cc_no`),COALESCE(NULLIF(up.`AccName`,''),NULLIF(b.`AccName`,''),pc.`cc_name`),
+`status_id`,`remark`,`receipt_id`,`receipt_other_id`,`created_dt`)
 SELECT up.`PolisId`,@tgl,'R',b.`recurring_seq`,1,'IDR',b.`TotalAmount`,b.`due_dt_pre`,DATE_FORMAT(b.`due_dt_pre`,'%b%d'),
 @bankid,up.`AccNo`,up.`AccName`,2,'APPROVED',@receiptID,@receiptOtherID,@tgl
 FROM " + tableName + @" up
@@ -1270,8 +1275,8 @@ LEFT JOIN transaction_bank tb ON tb.`BillingID`=up.`BillingID` AND tb.`id` >= @t
 	b.`BankIdDownload`=@BankIdDwD,
 	b.`Source_download`='CC',
 	b.`BillingDate`=COALESCE(b.`BillingDate`,@tgl)
-WHERE b.`status_billing` IN ('A','C') AND up.`BillingID` IS NOT NULL AND up.`BillCode`='B';
-";
+WHERE b.`status_billing` IN ('A','C') AND up.`BillingID` IS NOT NULL AND up.`BillCode`='B'
+;";
                 cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
                 cmd.Parameters.Add(new MySqlParameter("@BankIdDwD", MySqlDbType.Int32) { Value = DataHeader.bankid });
                 cmd.Parameters.Add(new MySqlParameter("@FileName", MySqlDbType.VarChar) { Value = DataHeader.FileName });
