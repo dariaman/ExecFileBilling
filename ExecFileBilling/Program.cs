@@ -58,7 +58,6 @@ namespace ExecFileBilling
                         DataUpload = BacaFileBCA(item);
                         InsertTableStaging(DataUpload, BCA_TEMP_TABLE);
                         MapingDataReject(BCA_TEMP_TABLE);
-                        //DataReject = PoolDataProsesReject(BCA_TEMP_TABLE);
                         SubmitRejectTransaction(BCA_TEMP_TABLE, item);
                         break;
                     case 3: // Mandiri
@@ -71,7 +70,6 @@ namespace ExecFileBilling
 
                         //Proses yang reject
                         MapingDataReject(MANDIRI_TEMP_TABLE);
-                        //DataReject = PoolDataProsesReject(MANDIRI_TEMP_TABLE);
                         SubmitRejectTransaction(MANDIRI_TEMP_TABLE, item);
                         break;
                     case 4: // Mega On US
@@ -84,7 +82,6 @@ namespace ExecFileBilling
 
                         //Proses yang reject
                         MapingDataReject(MEGAOnUs_TEMP_TABLE);
-                        //DataReject = PoolDataProsesReject(MEGAOnUs_TEMP_TABLE);
                         SubmitRejectTransaction(MEGAOnUs_TEMP_TABLE, item);
                         break;
                     case 5: // Mega Off Us
@@ -97,7 +94,6 @@ namespace ExecFileBilling
 
                         //Proses yang reject
                         MapingDataReject(MEGAOffUs_TEMP_TABLE);
-                        //DataReject = PoolDataProsesReject(MEGAOffUs_TEMP_TABLE);
                         SubmitRejectTransaction(MEGAOffUs_TEMP_TABLE, item);
                         break;
                     case 6: // BNI
@@ -110,7 +106,6 @@ namespace ExecFileBilling
 
                         //Proses yang reject
                         MapingDataReject(BNI_TEMP_TABLE);
-                        //DataReject = PoolDataProsesReject(BNI_TEMP_TABLE);
                         SubmitRejectTransaction(BNI_TEMP_TABLE, item);
                         break;
                 }
@@ -808,7 +803,6 @@ WHERE SUBSTR(up.`PolisNo`,1,1)='X';
                 try
                 {
                     Console.Write(String.Format("{0} ", i));
-                    //if (item.BillCode == "B") Task.Run(async () => await RecurringApprove(tableName, item, DataHeader));
                     if (item.BillCode == "B") RecurringApprove(tableName, item, DataHeader);
                     else if (item.BillCode == "A") BillOtherApprove(tableName, item, DataHeader);
                     else if (item.BillCode == "Q") QuoteApprove(item, DataHeader);
@@ -817,18 +811,12 @@ WHERE SUBSTR(up.`PolisNo`,1,1)='X';
                 catch (Exception ex)
                 {
                     throw new Exception("SubmitApproveTransaction() : " + ex.Message);
-                    //Console.WriteLine("Exception SubmitTransaction ERROR =>" + ex.Message);
                 }
-
             }
-            //Console.WriteLine("SubmitTransaction Finish ....");
         }
         public static void RecurringApprove(string tableName, DataSubmitModel DataProses, FileResultModel DataHeader)
         {
-            // Fungsi Approve data Recurring, jadi harus ada polisID saat di mapping
             if ((DataProses.PolisId == null) || (DataProses.PolisId == "")) return;
-
-            //Console.Write(String.Format("Polis {0} ...", DataProses.PolisNo));
 
             MySqlConnection con = new MySqlConnection(constring);
             MySqlTransaction tr = null;
@@ -922,12 +910,13 @@ SELECT LAST_INSERT_ID();";
                 cmd.CommandText = @"
 INSERT INTO `prod_life21`.`policy_cc_transaction`(`policy_id`,`transaction_dt`,`transaction_type`,`recurring_seq`,
 `count_times`,`currency`,`total_amount`,`due_date_pre`,`due_date_pre_period`,`acquirer_bank_id`,
+`cc_no`,`cc_name`,`status_id`,`remark`,`receipt_id`,`receipt_other_id`,`created_dt`)
+SELECT up.`PolisId`,@tgl,'R',b.`recurring_seq`,1,'IDR',b.`TotalAmount`,b.`due_dt_pre`,DATE_FORMAT(b.`due_dt_pre`,'%b%d'),@bankid,
 COALESCE(NULLIF(up.`AccNo`,''),NULLIF(b.`AccNo`,''),pc.`cc_no`),COALESCE(NULLIF(up.`AccName`,''),NULLIF(b.`AccName`,''),pc.`cc_name`),
-`status_id`,`remark`,`receipt_id`,`receipt_other_id`,`created_dt`)
-SELECT up.`PolisId`,@tgl,'R',b.`recurring_seq`,1,'IDR',b.`TotalAmount`,b.`due_dt_pre`,DATE_FORMAT(b.`due_dt_pre`,'%b%d'),
-@bankid,up.`AccNo`,up.`AccName`,2,'APPROVED',@receiptID,@receiptOtherID,@tgl
+2,'APPROVED',@receiptID,@receiptOtherID,@tgl
 FROM " + tableName + @" up
 INNER JOIN `billing` b ON b.`BillingID`=@BillID
+LEFT JOIN `jbsdb`.`policy_cc` pc ON pc.`PolicyId`=b.`policy_id`
 WHERE up.`seqid`=@seqid AND up.`PolisNo`=@PolisNo;
 SELECT LAST_INSERT_ID();";
                 cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
@@ -943,22 +932,24 @@ SELECT LAST_INSERT_ID();";
                 // Update Billing JBS
                 cmd.CommandType = CommandType.Text;
                 cmd.Parameters.Clear();
-                cmd.CommandText = @"UPDATE `jbsdb`.`billing` SET `IsDownload`=0,
-                                        `IsClosed`=1,
-                                        `BillingDate`=COALESCE(`BillingDate`,@tgl),
-                                        `status_billing`='P',
-                                        `PaymentSource`='CC',
-                                        `BankIdPaid`=@bankid,
-                                        `PaidAmount`=@PaidAmount,
-                                        `Life21TranID`=@TransactionID,
-                                        `ReceiptID`=@receiptID,
-                                        `ReceiptOtherID`=@ReceiptOtherID,
-                                        `PaymentTransactionID`=@uid,
-                                        `ACCname`=@ACCname,
-                                        `ACCno`=@ACCno,
-                                        `LastUploadDate`=@tgl,
-                                        `UserUpload`='system'
-                                    WHERE `BillingID`=@idBill;";
+                cmd.CommandText = @"UPDATE `jbsdb`.`billing` b
+                                    LEFT JOIN `jbsdb`.`policy_cc` pc ON pc.`PolicyId`=b.`policy_id`
+                                        SET b.`IsDownload`=0,
+                                        b.`IsClosed`=1,
+                                        b.`BillingDate`=COALESCE(b.`BillingDate`,@tgl),
+                                        b.`status_billing`='P',
+                                        b.`PaymentSource`='CC',
+                                        b.`BankIdPaid`=@bankid,
+                                        b.`PaidAmount`=@PaidAmount,
+                                        b.`Life21TranID`=@TransactionID,
+                                        b.`ReceiptID`=@receiptID,
+                                        b.`ReceiptOtherID`=@ReceiptOtherID,
+                                        b.`PaymentTransactionID`=@uid,
+                                        b.`ACCname`=COALESCE(NULLIF(@ACCname,''),NULLIF(`ACCname`,''),pc.`cc_name`),
+                                        b.`ACCno`=COALESCE(NULLIF(@ACCno,''),NULLIF(`ACCno`,''),pc.`cc_no`),
+                                        b.`LastUploadDate`=@tgl,
+                                        b.`UserUpload`='system'
+                                    WHERE b.`BillingID`=@idBill;";
                 cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
                 cmd.Parameters.Add(new MySqlParameter("@bankid", MySqlDbType.Int32) { Value = DataHeader.bankid });
                 cmd.Parameters.Add(new MySqlParameter("@PaidAmount", MySqlDbType.Decimal) { Value = DataProses.Amount });
@@ -1091,20 +1082,18 @@ SELECT LAST_INSERT_ID();";
                                             `paid_date`=DATE(@tgl),
                                             BankIdPaid=@bankid,
                                             `PaidAmount`=@PaidAmount,
-                                            Life21TranID=@TransactionID,
-			                                `ReceiptOtherID`=@receiptID,
+			                                `ReceiptOtherID`=@receiptOtherID,
 			                                `PaymentTransactionID`=@uid,
                                             UserUpload='system'
 		                                WHERE `BillingID`=@idBill;";
 
                 cmd.Parameters.Add(new MySqlParameter("@tgl", MySqlDbType.DateTime) { Value = DataHeader.tglSkrg });
                 cmd.Parameters.Add(new MySqlParameter("@bankid", MySqlDbType.Int32) { Value = DataHeader.bankid });
-                cmd.Parameters.Add(new MySqlParameter("@receiptID", MySqlDbType.Int32) { Value = DataProses.receiptOtherID });
-                cmd.Parameters.Add(new MySqlParameter("@rstStatus", MySqlDbType.VarChar) { Value = DataProses.ApprovalCode });
+                cmd.Parameters.Add(new MySqlParameter("@PaidAmount", MySqlDbType.Decimal) { Value = DataProses.Amount });
+                cmd.Parameters.Add(new MySqlParameter("@receiptOtherID", MySqlDbType.Int32) { Value = DataProses.receiptOtherID });
                 cmd.Parameters.Add(new MySqlParameter("@uid", MySqlDbType.VarChar) { Value = DataProses.TransHistory });
                 cmd.Parameters.Add(new MySqlParameter("@idBill", MySqlDbType.VarChar) { Value = DataProses.BillingID });
                 cmd.ExecuteNonQuery();
-                //Console.Write(String.Format("BillingID={0} ... ", DataProses.BillingID));
 
                 var emailEndorsThanks = new EmailThanksEndorsemen(DataProses.BillingID, DataProses.Amount, DataHeader.tglSkrg);
                 emailEndorsThanks.InsertEmailQuee();
