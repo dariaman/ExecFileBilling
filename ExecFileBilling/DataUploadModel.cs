@@ -16,7 +16,7 @@ namespace ExecFileBilling
         public string Deskripsi { get; set; }
         public string AccNo { get; set; }
         public string AccName { get; set; }
-
         public Boolean IsSukses{ get; set; }
+        public Boolean IsExec { get; set; }
     }
 }

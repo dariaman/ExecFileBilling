@@ -37,7 +37,7 @@ namespace ExecFileBilling
             cmd = new MySqlCommand(@"
 SELECT pb.`policy_no`,ci.`CustomerName`,ci.`IsLaki`,pd.`product_description`, bo.`TotalAmount`,ci.`Email`,
 CASE WHEN bo.`BillingType`='A2' THEN 'Endorsemen Cetak Polis Fisik'
-WHEN bo.`BillingType`='A1' THEN 'Cetak Kartu' END AS 'ProductType'
+WHEN bo.`BillingType`='A3' THEN 'Cetak Kartu' END AS 'ProductType'
 FROM `billing_others` bo
 INNER JOIN `policy_billing` pb ON pb.`policy_Id`=bo.`policy_id`
 INNER JOIN `customer_info` ci ON ci.`CustomerId`=pb.`holder_id`
