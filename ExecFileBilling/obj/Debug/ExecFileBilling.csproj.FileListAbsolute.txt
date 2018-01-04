@@ -1,1 +1,10 @@
 C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\bin\Debug\ExecFileBilling.exe.config
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\bin\Debug\ExecFileBilling.exe
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\bin\Debug\ExecFileBilling.pdb
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\bin\Debug\MySql.Data.dll
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\bin\Debug\MySql.Data.xml
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\obj\Debug\ExecFileBilling.exe
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\obj\Debug\ExecFileBilling.pdb
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\bin\Debug\EPPlus.dll
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\bin\Debug\EPPlus.xml
+C:\Users\dariaman.siagian\Documents\CAF\ExecFileBilling\ExecFileBilling\obj\Debug\ExecFileBilling.csprojResolveAssemblyReference.cache

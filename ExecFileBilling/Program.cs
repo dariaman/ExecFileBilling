@@ -31,7 +31,7 @@ namespace ExecFileBilling
 
         static void Main(string[] args)
         {
-            args = new string[] { "exec" };
+            //args = new string[] { "exec" };
             //args = new string[] { "upload", "1" };
             if (!(args.Count() > 0))
             {
